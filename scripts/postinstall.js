@@ -303,9 +303,6 @@ function trySetupCompletion(repoRoot) {
   }
 }
 
-  trySetupCompletion(repoRoot);
-}
-
 function patchClipboardLibrary(repoRoot) {
   // Robustly patch @mariozechner/clipboard to not crash on Android/Termux
   const candidates = [
