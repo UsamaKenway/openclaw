@@ -303,13 +303,57 @@ function trySetupCompletion(repoRoot) {
   }
 }
 
+  trySetupCompletion(repoRoot);
+}
+
+function patchClipboardLibrary(repoRoot) {
+  // Robustly patch @mariozechner/clipboard to not crash on Android/Termux
+  const candidates = [
+    path.join(repoRoot, "node_modules", "@mariozechner", "clipboard", "index.js"),
+    path.join(repoRoot, "..", "node_modules", "@mariozechner", "clipboard", "index.js") // Global install fallback
+  ];
+
+  for (const targetPath of candidates) {
+    if (!fs.existsSync(targetPath)) continue;
+
+    try {
+      let content = fs.readFileSync(targetPath, "utf-8");
+      
+      // The code block that throws the error. We verify it exists before replacing.
+      const throwPattern = /if \(!nativeBinding\) \{[\s\S]*?throw new Error\(`Failed to load native binding`\)[\s\S]*?\}/;
+      
+      if (throwPattern.test(content)) {
+        console.log(`[postinstall] Patching @mariozechner/clipboard at ${targetPath}`);
+        
+        const fallbackCode = `
+if (!nativeBinding) {
+  console.warn("[clipboard] Native binding failed, using fallback no-op.");
+  nativeBinding = {
+    availableFormats: () => [], getText: () => "", setText: () => {}, hasText: () => false,
+    getImageBinary: () => null, getImageBase64: () => "", setImageBinary: () => {}, setImageBase64: () => {},
+    hasImage: () => false, getHtml: () => "", setHtml: () => {}, hasHtml: () => false,
+    getRtf: () => "", setRtf: () => {}, hasRtf: () => false,
+    clear: () => {}, watch: () => {}, callThreadsafeFunction: () => {}
+  };
+}`;
+        content = content.replace(throwPattern, fallbackCode);
+        fs.writeFileSync(targetPath, content, "utf-8");
+        return; // Patched successfully
+      }
+    } catch (e) {
+      console.warn(`[postinstall] Failed to patch clipboard lib: ${e.message}`);
+    }
+  }
+}
+
 function main() {
   const repoRoot = getRepoRoot();
   process.chdir(repoRoot);
 
   ensureExecutable(path.join(repoRoot, "dist", "/entry.js"));
+  patchClipboardLibrary(repoRoot); // Run this BEFORE git hooks or completion setup
   setupGitHooks({ repoRoot });
-
+  
   if (shouldApplyPnpmPatchedDependenciesFallback()) {
     const pkgPath = path.join(repoRoot, "package.json");
     const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));

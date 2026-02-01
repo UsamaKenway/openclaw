@@ -1,7 +1,10 @@
 diff --git a/index.js b/index.js
 --- a/index.js
 +++ b/index.js
-@@ -239,9 +239,26 @@
+@@ -236,11 +236,26 @@
+   default:
+     throw new Error(`Unsupported OS: ${platform}, architecture: ${arch}`)
+ }
  
  if (!nativeBinding) {
 -  if (loadError) {
