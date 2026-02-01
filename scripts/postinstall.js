@@ -309,31 +309,30 @@ function main() {
 
   ensureExecutable(path.join(repoRoot, "dist", "/entry.js"));
   setupGitHooks({ repoRoot });
+
+  if (shouldApplyPnpmPatchedDependenciesFallback()) {
+    const pkgPath = path.join(repoRoot, "package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    const patched = pkg?.pnpm?.patchedDependencies ?? {};
+
+    // Bun does not support pnpm.patchedDependencies. Apply these patch files to
+    // node_modules packages as a best-effort compatibility layer.
+    for (const [key, relPatchPath] of Object.entries(patched)) {
+      if (typeof relPatchPath !== "string" || !relPatchPath.trim()) {
+        continue;
+      }
+      const pkgName = extractPackageName(String(key));
+      if (!pkgName) {
+        continue;
+      }
+      applyPatchFile({
+        targetDir: path.join("node_modules", ...pkgName.split("/")),
+        patchPath: relPatchPath,
+      });
+    }
+  }
+
   trySetupCompletion(repoRoot);
-
-  if (!shouldApplyPnpmPatchedDependenciesFallback()) {
-    return;
-  }
-
-  const pkgPath = path.join(repoRoot, "package.json");
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-  const patched = pkg?.pnpm?.patchedDependencies ?? {};
-
-  // Bun does not support pnpm.patchedDependencies. Apply these patch files to
-  // node_modules packages as a best-effort compatibility layer.
-  for (const [key, relPatchPath] of Object.entries(patched)) {
-    if (typeof relPatchPath !== "string" || !relPatchPath.trim()) {
-      continue;
-    }
-    const pkgName = extractPackageName(String(key));
-    if (!pkgName) {
-      continue;
-    }
-    applyPatchFile({
-      targetDir: path.join("node_modules", ...pkgName.split("/")),
-      patchPath: relPatchPath,
-    });
-  }
 }
 
 try {
